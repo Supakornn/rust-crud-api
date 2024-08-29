@@ -7,7 +7,6 @@ use std::env;
 #[macro_use]
 extern crate serde_derive;
 
-//Model: User struct with id, name, email
 #[derive(Serialize, Deserialize)]
 struct User {
     id: Option<i32>,
@@ -15,23 +14,18 @@ struct User {
     email: String,
 }
 
-//DATABASE URL
 const DB_URL: &str = env!("DATABASE_URL");
 
-//constants
 const OK_RESPONSE: &str = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n";
 const NOT_FOUND: &str = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
 const INTERNAL_ERROR: &str = "HTTP/1.1 500 INTERNAL ERROR\r\n\r\n";
 
-//main function
 fn main() {
-    //Set Database
     if let Err(_) = set_database() {
         println!("Error setting database");
         return;
     }
 
-    //start server and print port
     let listener = TcpListener::bind(format!("0.0.0.0:8080")).unwrap();
     println!("Server listening on port 8080");
 
@@ -47,7 +41,6 @@ fn main() {
     }
 }
 
-//handle requests
 fn handle_client(mut stream: TcpStream) {
     let mut buffer = [0; 1024];
     let mut request = String::new();
@@ -62,7 +55,7 @@ fn handle_client(mut stream: TcpStream) {
                 r if r.starts_with("GET /users") => handle_get_all_request(r),
                 r if r.starts_with("PUT /users/") => handle_put_request(r),
                 r if r.starts_with("DELETE /users/") => handle_delete_request(r),
-                _ => (NOT_FOUND.to_string(), "404 not found".to_string()),
+                _ => (NOT_FOUND.to_string(), "404 not found".to_string(),
             };
 
             stream.write_all(format!("{}{}", status_line, content).as_bytes()).unwrap();
@@ -71,7 +64,6 @@ fn handle_client(mut stream: TcpStream) {
     }
 }
 
-//handle post request
 fn handle_post_request(request: &str) -> (String, String) {
     match (get_user_request_body(&request), Client::connect(DB_URL, NoTls)) {
         (Ok(user), Ok(mut client)) => {
@@ -88,7 +80,6 @@ fn handle_post_request(request: &str) -> (String, String) {
     }
 }
 
-//handle get request
 fn handle_get_request(request: &str) -> (String, String) {
     match (get_id(&request).parse::<i32>(), Client::connect(DB_URL, NoTls)) {
         (Ok(id), Ok(mut client)) =>
@@ -109,7 +100,6 @@ fn handle_get_request(request: &str) -> (String, String) {
     }
 }
 
-//handle get all request
 fn handle_get_all_request(_request: &str) -> (String, String) {
     match Client::connect(DB_URL, NoTls) {
         Ok(mut client) => {
@@ -129,7 +119,6 @@ fn handle_get_all_request(_request: &str) -> (String, String) {
     }
 }
 
-//handle put request
 fn handle_put_request(request: &str) -> (String, String) {
     match
         (
@@ -152,13 +141,11 @@ fn handle_put_request(request: &str) -> (String, String) {
     }
 }
 
-//handle delete request
 fn handle_delete_request(request: &str) -> (String, String) {
     match (get_id(&request).parse::<i32>(), Client::connect(DB_URL, NoTls)) {
         (Ok(id), Ok(mut client)) => {
             let rows_affected = client.execute("DELETE FROM users WHERE id = $1", &[&id]).unwrap();
 
-            //if rows affected is 0, user not found
             if rows_affected == 0 {
                 return (NOT_FOUND.to_string(), "User not found".to_string());
             }
@@ -169,7 +156,6 @@ fn handle_delete_request(request: &str) -> (String, String) {
     }
 }
 
-//db setup
 fn set_database() -> Result<(), PostgresError> {
     let mut client = Client::connect(DB_URL, NoTls)?;
     client.batch_execute(
@@ -179,17 +165,15 @@ fn set_database() -> Result<(), PostgresError> {
             name VARCHAR NOT NULL,
             email VARCHAR NOT NULL
         )
-    "
-    )?;
+        "
+        )?;
     Ok(())
 }
 
-//Get id from request URL
 fn get_id(request: &str) -> &str {
     request.split("/").nth(2).unwrap_or_default().split_whitespace().next().unwrap_or_default()
 }
 
-//deserialize user from request body without id
 fn get_user_request_body(request: &str) -> Result<User, serde_json::Error> {
     serde_json::from_str(request.split("\r\n\r\n").last().unwrap_or_default())
 }
